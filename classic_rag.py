@@ -98,11 +98,13 @@ def embedding(list_strings: List[str]):
     return response # ["results"][0]["text"]
 
 def create_collection_and_upsert(client, embedding_floats):
+    """
     client.create_collection(
         collection_name="new-collection",
         vectors_config=VectorParams(size=np.array(embedding_floats).shape[1], 
                                     distance=Distance.COSINE))  # Ensure 384 is correct)
-
+    """
+    
     client.upsert(
         collection_name="new-collection",
         points=models.Batch(
