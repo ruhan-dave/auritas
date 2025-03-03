@@ -22,4 +22,5 @@ I decided to go with Cohere, which is a San-Francisco Based AI startup with plen
 model from Cohere. To make this work, I have input a template for the LLM to make reference to. The user query and the will be passed to the LLM to retrieve a final
 output, which is then displayed in the Streamlit App. 
 
-
+### Application Link
+Play around with this app here at: https://legaldocassistant.streamlit.app
