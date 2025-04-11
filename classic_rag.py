@@ -104,7 +104,7 @@ def create_collection_and_upsert(client, embedding_floats):
         vectors_config=VectorParams(size=np.array(embedding_floats).shape[1], 
                                     distance=Distance.COSINE))  # Ensure 384 is correct)
     """
-    
+
     client.upsert(
         collection_name="new-collection",
         points=models.Batch(
@@ -115,6 +115,82 @@ def create_collection_and_upsert(client, embedding_floats):
     )
 
     st.write(len(embedding_floats), "points upserted successfully.")
+
+def direct_answer_from_qdrant(user_query, collection_name="auritas", limit=5):
+    """
+    Retrieve answer from Qdrant database based on user query without PDF processing.
+    """
+    try:
+        # Generate embeddings for the query using Cohere V2 client
+        embedding_response = cohere_client.embed(
+            texts=[user_query],
+            input_type="search_query",  # Required parameter
+            embedding_types=["float"]   # Required parameter
+        )
+        query_embedding = embedding_response.embeddings[0]
+
+        # Search Qdrant for similar vectors
+        search_results = qdrant_client.search(
+            collection_name=collection_name,
+            query_vector=query_embedding,
+            limit=limit
+        )
+
+        if not search_results:
+            return "No relevant information found in the database. Please try a different question."
+
+        # Extract the text from search results
+        retrieved_chunks = [result.payload.get("text", "") for result in search_results]
+
+        # Generate response using Cohere
+        response = ch.chat(
+            message=user_query,
+            documents=retrieved_chunks,
+            model="command-r-plus",
+            preamble="You are an assistant that answers questions based on the provided context. If the answer cannot be found in the context, say so."
+        )
+
+        return response.text
+    except Exception as e:
+        return f"Error retrieving answer: {str(e)}"
+    
+def query_chunking(query):
+    response = cohere_client.embed(
+        texts=query,
+        model="embed-english-light-v3.0",
+        input_type="search_query",
+        embedding_types=["float"]
+    )
+    return response # ["results"][0]["text"]
+
+def no_pdf_retrieve_top_chunks(query:str, collection_name, chunks, n=5):
+    # Fetch all stored points
+    stored_points = qdrant_client.scroll(collection_name="daves-rag", with_vectors=True, limit=1000)[0]
+    query_chunks = query_chunking([query])
+    query_embeddings = query_chunks.embeddings.float
+    
+    # Extract embeddings & IDs
+    chunk_embeddings = [point.vector for point in stored_points]
+    stored_ids = [point.id for point in stored_points]
+    
+    def cosine_similarity(a, b):
+        return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+
+    # --- Compute Similarity Scores ---
+    similarities = []
+    for chunk_embedding in chunk_embeddings:
+        subquery_scores = [cosine_similarity(query_embedding, chunk_embedding) for query_embedding in query_embeddings]
+        similarities.append(np.mean(subquery_scores))  # Average similarity if multiple subqueries
+
+    print("Similarity scores:", similarities)
+
+    # --- Retrieve Top `n` Chunks ---
+    top_indices = np.argsort(similarities)[::-1][:n]  # Sort and get top `n`
+
+    # Retrieve top similar document chunks
+    top_chunks_after_retrieval = [chunks[i] for i in top_indices]
+
+    return top_chunks_after_retrieval
 
 def retrieve_top_chunks(client, query:str, collection_name, list_chunks, n=5):
     # Fetch all stored points
