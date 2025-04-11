@@ -104,7 +104,11 @@ def create_collection_and_upsert(client, embedding_floats):
         vectors_config=VectorParams(size=np.array(embedding_floats).shape[1], 
                                     distance=Distance.COSINE))  # Ensure 384 is correct)
     """
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> 277e56220d6bc1c77c029bd375dc51d3f1eafbc2
     client.upsert(
         collection_name="new-collection",
         points=models.Batch(
